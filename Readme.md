@@ -1,0 +1,306 @@
+# 🗄️ Supabase Projects — Python
+
+A collection of Python projects built with **Supabase** as the backend. Each project demonstrates a different use case — from a simple database connection to a full-stack photo sharing app.
+
+---
+
+## 📂 Projects
+
+| Project | Description | Stack |
+|---|---|---|
+| [Connect to Supabase](#-1-connect-to-supabase) | Connect Python to a Supabase PostgreSQL database and query data | Python, supabase-py |
+| [To Do App](#-2-to-do-app) | A simple task manager with a Streamlit UI | Python, Streamlit, Supabase |
+| [Photo Sharing App](#-3-photo-sharing-app) | Upload, view, and delete photos stored in Supabase Storage | Python, FastAPI, Supabase |
+
+---
+
+## 🔗 1. Connect to Supabase
+
+> 📁 [`Connect to Supabase/README.md`](Connect%20to%20Supabase/README.md)
+
+A beginner-friendly project that demonstrates how to connect Python to a Supabase PostgreSQL database, create a table, configure Row Level Security policies, and query data using the official Supabase Python client.
+
+### What it covers
+- Creating a Supabase project and table
+- Connecting Python to Supabase using `supabase-py`
+- Understanding why Row Level Security (RLS) blocks data by default
+- Creating a read policy to allow data access
+
+### Setup
+
+```bash
+uv init
+uv add python-dotenv supabase
+uv python pin 3.12
+```
+
+```env
+# .env
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your-anon-public-key
+```
+
+### Code
+
+```python
+from supabase import create_client, Client
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+url = os.getenv("SUPABASE_URL")
+key = os.getenv("SUPABASE_KEY")
+
+supabase: Client = create_client(url, key)
+
+try:
+    response = supabase.table("users").select("*").execute()
+    print(response.data)
+except Exception as e:
+    print(e)
+```
+
+### RLS Policy — required to access data
+
+```sql
+CREATE POLICY "Allow select for all"
+ON public.users
+FOR SELECT
+USING (true);
+```
+
+> ⚠️ Without this policy the output will always be `[]` even if the table has data.
+
+---
+
+## ✅ 2. To Do App
+
+> 📁 [`To Do App/README.md`](To%20Do%20App/README.md)
+
+A simple full-stack task manager built with **Streamlit** and Supabase. Add tasks through a clean web UI and store them in a cloud PostgreSQL database — all in under 50 lines of Python.
+
+### What it covers
+- Building a UI entirely in Python using Streamlit
+- Inserting and reading records from Supabase
+- Configuring RLS policies for read and write access
+- Managing Python versions and packages with `uv`
+
+### Setup
+
+```bash
+uv init
+uv add streamlit python-dotenv supabase
+uv python pin 3.12
+```
+
+```env
+# .env
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your-anon-public-key
+```
+
+### Table
+
+```sql
+CREATE TABLE public.todos (
+  id   SERIAL PRIMARY KEY,
+  task TEXT NOT NULL
+);
+```
+
+### RLS Policies
+
+```sql
+CREATE POLICY "Allow select for all"
+ON public.todos FOR SELECT USING (true);
+
+CREATE POLICY "Allow insert for all"
+ON public.todos FOR INSERT WITH CHECK (true);
+```
+
+### Code
+
+```python
+import streamlit as st
+from supabase import create_client, Client
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+
+def get_todos():
+    return supabase.table('todos').select("*").execute().data
+
+def add_todo(task):
+    supabase.table('todos').insert({"task": task}).execute()
+
+st.title("Supabase Todo App")
+task = st.text_input("Add a new task:")
+
+if st.button("Add Task"):
+    if task:
+        add_todo(task)
+        st.success("Task added!")
+    else:
+        st.error("Please enter a task")
+
+st.write("### Todo List:")
+todos = get_todos()
+
+if todos:
+    for todo in todos:
+        st.write(f" - {todo['task']}")
+else:
+    st.write("No tasks available")
+```
+
+### Run
+
+```bash
+streamlit run main.py
+```
+
+---
+
+## 📸 3. Photo Sharing App
+
+> 📁 [`Photo Sharing - FastAPI/README.md`](Photo%20Sharing%20-%20FastAPI/README.md)
+
+A full-stack photo gallery built with **FastAPI** and Supabase. Upload photos with a title, store images in Supabase Storage, save metadata to a PostgreSQL table, and delete photos — all with a clean responsive UI.
+
+### What it covers
+- Uploading files from a web form using FastAPI `UploadFile`
+- Storing images in a Supabase public storage bucket
+- Saving and querying metadata in a Supabase PostgreSQL table
+- Deleting records from both storage and the database
+- Generating unique filenames with `uuid`
+- Jinja2 HTML templating with FastAPI
+
+### Project structure
+
+```
+Photo Sharing - FastAPI/
+│
+├── main.py
+├── templates/
+│     ├── index.html
+│     └── upload.html
+├── static/
+│     └── style.css
+└── .env
+```
+
+### Setup
+
+```bash
+uv init
+uv add fastapi "uvicorn[standard]" supabase python-dotenv python-multipart jinja2
+uv python pin 3.12
+```
+
+```env
+# .env
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your-anon-public-key
+```
+
+### Table
+
+```sql
+CREATE TABLE photos (
+  id         BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  title      TEXT NOT NULL,
+  image_url  TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Storage bucket
+
+1. Go to **Storage** in Supabase
+2. Click **New Bucket** → name it `photos`
+3. Enable **Public bucket** → click **Create**
+
+### RLS Policies
+
+```sql
+CREATE POLICY "Allow select for all"
+ON public.photos FOR SELECT USING (true);
+
+CREATE POLICY "Allow insert for all"
+ON public.photos FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow delete for all"
+ON public.photos FOR DELETE USING (true);
+```
+
+### Routes
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/` | Gallery — view all photos |
+| GET | `/upload` | Upload form |
+| POST | `/upload` | Handle photo upload |
+| POST | `/delete/{id}` | Delete a photo |
+
+### Run
+
+```bash
+python -m uvicorn main:app --reload
+```
+
+Open: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+
+---
+
+## 🔑 Common Setup — All Projects
+
+All three projects share the same Supabase credentials setup:
+
+### 1. Get your credentials
+- Go to your Supabase project → **Project Settings → API**
+- Copy **Project URL** → `SUPABASE_URL`
+- Copy **anon / public key** → `SUPABASE_KEY`
+
+### 2. Create a `.env` file
+```env
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your-anon-public-key
+```
+
+### 3. Python version
+> ⚠️ Python 3.14 is not compatible with the Supabase client. Always use Python 3.12.
+
+```bash
+uv python pin 3.12
+uv venv --clear --python 3.12
+```
+
+### 4. Never commit `.env` to GitHub
+Add this to your `.gitignore`:
+```
+.env
+.venv/
+__pycache__/
+```
+
+---
+
+## 📚 Concepts Covered Across All Projects
+
+| Concept | Connect | To Do | Photo App |
+|---|:---:|:---:|:---:|
+| Supabase connection | ✅ | ✅ | ✅ |
+| PostgreSQL table creation | ✅ | ✅ | ✅ |
+| Row Level Security (RLS) | ✅ | ✅ | ✅ |
+| Reading data | ✅ | ✅ | ✅ |
+| Inserting data | | ✅ | ✅ |
+| Deleting data | | | ✅ |
+| Supabase Storage | | | ✅ |
+| Streamlit UI | | ✅ | |
+| FastAPI + Jinja2 | | | ✅ |
+| File uploads | | | ✅ |
+| Environment variables | ✅ | ✅ | ✅ |
